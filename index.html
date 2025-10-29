@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Higher - Parkour Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 100;
+        }
+
+        #height-display {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px;
+            border-radius: 10px;
+            z-index: 200;
+        }
+
+        #instructions h1 {
+            margin-bottom: 20px;
+            font-size: 36px;
+        }
+
+        #instructions p {
+            margin: 10px 0;
+        }
+
+        #instructions button {
+            margin-top: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #instructions button:hover {
+            background: #45a049;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 150;
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="ui">
+        <div id="height-display">Height: 0m</div>
+        <div>Speed: <span id="speed-display">0</span></div>
+        <div style="margin-top: 10px; font-size: 14px;">
+            <div>WASD - Move</div>
+            <div>Space - Jump</div>
+            <div>Mouse - Look Around</div>
+            <div>Q + W - Sprint</div>
+        </div>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="instructions">
+        <h1>HIGHER</h1>
+        <p>Climb as high as you can!</p>
+        <p>Use WASD to move, Space to jump</p>
+        <p>Hold Q + W together to sprint forward</p>
+        <p>Be careful - if you fall, you'll have to climb back up!</p>
+        <button id="start-button">Start Game</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="game.js"></script>
+</body>
+</html>
