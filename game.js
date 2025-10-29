@@ -28,6 +28,48 @@ class ParkourGame {
         this.highestPlatformGenerated = 0;
         this.platformGenerationThreshold = 100; // Generate more when within this distance
         
+        // Checkpoint system
+        this.checkpoints = [];
+        this.lastCheckpoint = { x: 0, y: this.PLAYER_HEIGHT + 1, z: 0 };
+        this.checkpointInterval = 50; // Every 50m
+        this.nextCheckpointHeight = 50;
+        
+        // Timer
+        this.startTime = 0;
+        this.elapsedTime = 0;
+        this.isPaused = false;
+        
+        // Collectibles
+        this.coins = 0;
+        this.totalCoins = 0;
+        this.collectibles = [];
+        
+        // Stamina system
+        this.maxStamina = 100;
+        this.currentStamina = 100;
+        this.staminaRegenRate = 20; // per second
+        this.sprintStaminaCost = 30; // per second
+        
+        // Power-ups
+        this.hasDoubleJump = false;
+        this.doubleJumpUsed = false;
+        this.powerUpActive = null;
+        this.powerUpTimer = 0;
+        
+        // Moving platforms
+        this.movingPlatforms = [];
+        
+        // Achievements
+        this.achievements = {
+            height50: false,
+            height100: false,
+            height200: false,
+            height500: false,
+            coins10: false,
+            coins50: false,
+            speedrun: false
+        };
+        
         // FBX loader and models
         this.loadingManager = new THREE.LoadingManager();
         
@@ -63,6 +105,7 @@ class ParkourGame {
         this.SPRINT_SPEED = 60;
         this.PLAYER_HEIGHT = 2;
         this.PLAYER_RADIUS = 0.5;
+        this.DOUBLE_JUMP_VELOCITY = 12;
         
         this.init();
     }
@@ -99,6 +142,9 @@ class ParkourGame {
         // Fog
         this.scene.fog = new THREE.Fog(0x87CEEB, 50, 300);
         this.scene.background = new THREE.Color(0x87CEEB);
+        
+        // Skybox setup
+        this.setupSkybox();
 
         // Create world
         this.createWorld();
@@ -111,7 +157,133 @@ class ParkourGame {
 
         // Start animation loop
         this.lastTime = performance.now();
+        
+        // Audio setup
+        this.setupAudio();
+        
+        // Particle system
+        this.setupParticles();
+        
         this.animate();
+    }
+
+    setupParticles() {
+        // Landing particle system
+        const particleCount = 20;
+        const particles = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        
+        for (let i = 0; i < particleCount * 3; i++) {
+            positions[i] = 0;
+        }
+        
+        particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        const particleMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.2,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        this.particleSystem = new THREE.Points(particles, particleMaterial);
+        this.scene.add(this.particleSystem);
+        this.particles = [];
+        this.particleActive = false;
+    }
+
+    createLandingParticles(x, y, z) {
+        const particleCount = 15;
+        for (let i = 0; i < particleCount; i++) {
+            const angle = (Math.PI * 2 * i) / particleCount;
+            const speed = 2 + Math.random() * 3;
+            
+            this.particles.push({
+                position: new THREE.Vector3(x, y, z),
+                velocity: new THREE.Vector3(
+                    Math.cos(angle) * speed,
+                    Math.random() * 5 + 2,
+                    Math.sin(angle) * speed
+                ),
+                life: 0.5,
+                maxLife: 0.5
+            });
+        }
+    }
+
+    updateParticles(delta) {
+        const positions = this.particleSystem.geometry.attributes.position.array;
+        let activeCount = 0;
+        
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const particle = this.particles[i];
+            particle.life -= delta;
+            
+            if (particle.life <= 0) {
+                this.particles.splice(i, 1);
+            } else {
+                particle.velocity.y -= 20 * delta; // Gravity on particles
+                particle.position.add(particle.velocity.clone().multiplyScalar(delta));
+                
+                if (activeCount < 20) {
+                    positions[activeCount * 3] = particle.position.x;
+                    positions[activeCount * 3 + 1] = particle.position.y;
+                    positions[activeCount * 3 + 2] = particle.position.z;
+                    activeCount++;
+                }
+            }
+        }
+        
+        // Hide unused particles
+        for (let i = activeCount; i < 20; i++) {
+            positions[i * 3 + 1] = -1000;
+        }
+        
+        this.particleSystem.geometry.attributes.position.needsUpdate = true;
+        const opacity = this.particles.length > 0 ? 0.8 : 0;
+        this.particleSystem.material.opacity = opacity;
+    }
+
+    setupSkybox() {
+        // Create a simple gradient skybox that changes with height
+        const skyGeo = new THREE.SphereGeometry(500, 32, 32);
+        const skyMat = new THREE.ShaderMaterial({
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 bottomColor;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition).y;
+                    gl_FragColor = vec4(mix(bottomColor, topColor, max(h, 0.0)), 1.0);
+                }
+            `,
+            uniforms: {
+                topColor: { value: new THREE.Color(0x0077ff) },
+                bottomColor: { value: new THREE.Color(0xffffff) }
+            },
+            side: THREE.BackSide
+        });
+        this.skybox = new THREE.Mesh(skyGeo, skyMat);
+        this.scene.add(this.skybox);
+    }
+
+    setupAudio() {
+        // Audio will be added later - placeholder for now
+        this.sounds = {
+            jump: null,
+            land: null,
+            coin: null,
+            checkpoint: null,
+            music: null
+        };
     }
 
     createWorld() {
@@ -131,24 +303,59 @@ class ParkourGame {
         // West wall
         this.createPlatform(-20, wallHeight / 2 + 0.5, 0, wallThickness, wallHeight, 40, 0x696969);
 
+        // Add 3D model platforms in the starting area if models are loaded
+        if (this.modelsLoaded) {
+            this.createStartingAreaPlatforms();
+        }
+
         // Generate initial vertical platforms
         this.generatePlatforms(2.5, 150);
+    }
+
+    createStartingAreaPlatforms() {
+        // Create a nice arrangement of 3D model platforms in the starting area
+        const positions = [
+            { x: -8, y: 1.5, z: -8 },
+            { x: 8, y: 1.5, z: -8 },
+            { x: -8, y: 1.5, z: 8 },
+            { x: 8, y: 1.5, z: 8 },
+            { x: 0, y: 1.5, z: -12 },
+            { x: 0, y: 1.5, z: 12 },
+            { x: -12, y: 1.5, z: 0 },
+            { x: 12, y: 1.5, z: 0 }
+        ];
+
+        for (let pos of positions) {
+            this.add3DModelPlatform(pos.x, pos.y, pos.z, 0.012);
+        }
     }
 
     generatePlatforms(startHeight, endHeight) {
         let height = startHeight;
         
         while (height < endHeight) {
-            // Decide whether to create a regular platform or 3D model platform
-            const use3DModel = this.modelsLoaded && Math.random() > 0.4;
+            const platformRoll = Math.random();
             
-            if (use3DModel) {
-                // Create 3D model platform
+            // Heavy preference for 3D models (70% in beginning, tapering to 50% later)
+            const modelChance = height < 50 ? 0.2 : height < 150 ? 0.35 : 0.45;
+            
+            if (this.modelsLoaded && platformRoll > modelChance) {
+                // Create 3D model platform (70-55% chance depending on height)
                 const x = (Math.random() - 0.5) * 15;
                 const z = (Math.random() - 0.5) * 15;
                 this.add3DModelPlatform(x, height, z);
+            } else if (platformRoll > modelChance - 0.05 && platformRoll <= modelChance) {
+                // Moving platform (5% chance)
+                const x = (Math.random() - 0.5) * 12;
+                const z = (Math.random() - 0.5) * 12;
+                this.createMovingPlatform(x, height, z);
+            } else if (platformRoll > modelChance - 0.10 && platformRoll <= modelChance - 0.05) {
+                // Bounce pad (5% chance)
+                const x = (Math.random() - 0.5) * 12;
+                const z = (Math.random() - 0.5) * 12;
+                this.createBouncePad(x, height, z);
             } else {
-                // Create regular platform
+                // Create regular platform (20-35% chance)
                 const x = (Math.random() - 0.5) * 12;
                 const z = (Math.random() - 0.5) * 12;
                 const width = 4 + Math.random() * 3;
@@ -157,12 +364,28 @@ class ParkourGame {
                 this.createPlatform(x, height, z, width, 0.5, depth);
             }
             
-            // Add some stepping stone platforms between main platforms
-            if (Math.random() > 0.6) {
+            // Add more collectible coins in the beginning
+            const coinChance = height < 50 ? 0.5 : 0.7;
+            if (Math.random() > coinChance) {
+                const coinX = (Math.random() - 0.5) * 10;
+                const coinZ = (Math.random() - 0.5) * 10;
+                this.createCoin(coinX, height + 2, coinZ);
+            }
+            
+            // Add power-ups occasionally
+            if (Math.random() > 0.95) {
+                const powerX = (Math.random() - 0.5) * 10;
+                const powerZ = (Math.random() - 0.5) * 10;
+                this.createPowerUp(powerX, height + 2, powerZ);
+            }
+            
+            // Add many more stepping stone platforms (80% chance, most using 3D models)
+            if (Math.random() > 0.2) {
                 const offsetX = (Math.random() - 0.5) * 10;
                 const offsetZ = (Math.random() - 0.5) * 10;
                 
-                if (this.modelsLoaded && Math.random() > 0.5) {
+                if (this.modelsLoaded && Math.random() > 0.25) {
+                    // 75% of stepping stones are 3D models
                     this.add3DModelPlatform(offsetX, height + 1.5, offsetZ);
                 } else {
                     this.createPlatform(
@@ -176,13 +399,152 @@ class ParkourGame {
                 }
             }
             
+            // Sometimes add an extra 3D model platform for variety
+            if (this.modelsLoaded && Math.random() > 0.7) {
+                const extraX = (Math.random() - 0.5) * 12;
+                const extraZ = (Math.random() - 0.5) * 12;
+                this.add3DModelPlatform(extraX, height + 0.8, extraZ);
+            }
+            
             height += 2 + Math.random() * 2;
         }
         
         this.highestPlatformGenerated = endHeight;
     }
 
-    add3DModelPlatform(x, y, z) {
+    createMovingPlatform(x, y, z) {
+        const width = 4;
+        const depth = 4;
+        const geometry = new THREE.BoxGeometry(width, 0.5, depth);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0x4169E1,
+            emissive: 0x4169E1,
+            emissiveIntensity: 0.3,
+            roughness: 0.5,
+            metalness: 0.5
+        });
+        const platform = new THREE.Mesh(geometry, material);
+        platform.position.set(x, y, z);
+        platform.castShadow = true;
+        platform.receiveShadow = true;
+        this.scene.add(platform);
+        
+        // Add to moving platforms with movement data
+        const movingData = {
+            mesh: platform,
+            startX: x,
+            startZ: z,
+            range: 5 + Math.random() * 5,
+            speed: 0.5 + Math.random() * 0.5,
+            axis: Math.random() > 0.5 ? 'x' : 'z',
+            time: Math.random() * Math.PI * 2
+        };
+        this.movingPlatforms.push(movingData);
+        
+        this.platforms.push({
+            mesh: platform,
+            minX: x - width / 2,
+            maxX: x + width / 2,
+            minZ: z - depth / 2,
+            maxZ: z + depth / 2,
+            topY: y + 0.25,
+            isMoving: true,
+            movingData: movingData
+        });
+    }
+
+    createBouncePad(x, y, z) {
+        const geometry = new THREE.CylinderGeometry(2, 2, 0.3, 16);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0xFF69B4,
+            emissive: 0xFF69B4,
+            emissiveIntensity: 0.5,
+            roughness: 0.3,
+            metalness: 0.7
+        });
+        const pad = new THREE.Mesh(geometry, material);
+        pad.position.set(x, y, z);
+        pad.castShadow = true;
+        pad.receiveShadow = true;
+        this.scene.add(pad);
+        
+        this.platforms.push({
+            mesh: pad,
+            minX: x - 2,
+            maxX: x + 2,
+            minZ: z - 2,
+            maxZ: z + 2,
+            topY: y + 0.15,
+            isBouncePad: true
+        });
+    }
+
+    createCoin(x, y, z) {
+        const geometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0xFFD700,
+            emissive: 0xFFD700,
+            emissiveIntensity: 0.5,
+            metalness: 0.8,
+            roughness: 0.2
+        });
+        const coin = new THREE.Mesh(geometry, material);
+        coin.position.set(x, y, z);
+        coin.rotation.x = Math.PI / 2;
+        this.scene.add(coin);
+        
+        this.collectibles.push({
+            mesh: coin,
+            type: 'coin',
+            position: new THREE.Vector3(x, y, z),
+            collected: false
+        });
+        this.totalCoins++;
+    }
+
+    createPowerUp(x, y, z) {
+        const geometry = new THREE.OctahedronGeometry(0.5);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0x00FF00,
+            emissive: 0x00FF00,
+            emissiveIntensity: 0.7,
+            metalness: 0.9,
+            roughness: 0.1
+        });
+        const powerUp = new THREE.Mesh(geometry, material);
+        powerUp.position.set(x, y, z);
+        this.scene.add(powerUp);
+        
+        this.collectibles.push({
+            mesh: powerUp,
+            type: 'powerup',
+            position: new THREE.Vector3(x, y, z),
+            collected: false
+        });
+    }
+
+    createCheckpoint(y) {
+        const geometry = new THREE.TorusGeometry(3, 0.3, 16, 100);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0x00FF00,
+            emissive: 0x00FF00,
+            emissiveIntensity: 0.5,
+            transparent: true,
+            opacity: 0.6
+        });
+        const checkpoint = new THREE.Mesh(geometry, material);
+        checkpoint.position.set(0, y, 0);
+        checkpoint.rotation.x = Math.PI / 2;
+        this.scene.add(checkpoint);
+        
+        this.checkpoints.push({
+            mesh: checkpoint,
+            height: y,
+            activated: false
+        });
+    }
+
+    add3DModelPlatform(x, y, z, fixedScale = null) {
         const modelNames = Object.keys(this.loadedModels);
         if (modelNames.length === 0) return;
         
@@ -192,8 +554,14 @@ class ParkourGame {
         if (originalModel) {
             const modelClone = originalModel.clone();
             
-            // Random scale for variety (0.8 to 1.5 times original size)
-            const scale = 0.008 + Math.random() * 0.007;
+            // Use fixed scale if provided, otherwise random scale for variety
+            let scale;
+            if (fixedScale) {
+                scale = fixedScale;
+            } else {
+                // Larger scale range for better platforms (0.01 to 0.018)
+                scale = 0.010 + Math.random() * 0.008;
+            }
             modelClone.scale.set(scale, scale, scale);
             
             modelClone.position.set(x, y, z);
@@ -218,19 +586,24 @@ class ParkourGame {
             
             this.scene.add(modelClone);
             
-            // Calculate bounding box for collision
+            // Calculate bounding box for collision - make it slightly more generous
             const box = new THREE.Box3().setFromObject(modelClone);
             const size = new THREE.Vector3();
             box.getSize(size);
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            
+            // Expand collision bounds slightly for easier landing
+            const expandFactor = 1.1;
             
             // Add to platforms array for collision detection
             this.platforms.push({
                 mesh: modelClone,
-                minX: x - size.x / 2,
-                maxX: x + size.x / 2,
-                minZ: z - size.z / 2,
-                maxZ: z + size.z / 2,
-                topY: y + size.y / 2,
+                minX: center.x - (size.x * expandFactor) / 2,
+                maxX: center.x + (size.x * expandFactor) / 2,
+                minZ: center.z - (size.z * expandFactor) / 2,
+                maxZ: center.z + (size.z * expandFactor) / 2,
+                topY: box.max.y,
                 is3DModel: true
             });
             
@@ -435,7 +808,21 @@ class ParkourGame {
                     if (this.canJump) {
                         this.velocity.y = this.JUMP_VELOCITY;
                         this.canJump = false;
+                        this.doubleJumpUsed = false;
+                    } else if (this.hasDoubleJump && !this.doubleJumpUsed) {
+                        // Double jump
+                        this.velocity.y = this.DOUBLE_JUMP_VELOCITY;
+                        this.doubleJumpUsed = true;
                     }
+                    break;
+                case 'KeyR':
+                    // Respawn at last checkpoint
+                    if (this.gameStarted) {
+                        this.respawnAtCheckpoint();
+                    }
+                    break;
+                case 'Escape':
+                    this.togglePause();
                     break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
@@ -472,18 +859,45 @@ class ParkourGame {
     }
 
     updateSprintState() {
-        // Sprint when both Q and W are pressed
-        if (this.isPressingQ && this.moveForward) {
+        // Sprint when both Q and W are pressed AND have stamina
+        if (this.isPressingQ && this.moveForward && this.currentStamina > 0) {
             this.isSprinting = true;
         } else {
             this.isSprinting = false;
         }
     }
 
+    togglePause() {
+        this.isPaused = !this.isPaused;
+        const pauseMenu = document.getElementById('pause-menu');
+        if (this.isPaused) {
+            pauseMenu.style.display = 'block';
+            document.getElementById('pause-height').textContent = Math.floor(this.currentHeight);
+            document.getElementById('pause-time').textContent = this.formatTime(this.elapsedTime);
+            document.getElementById('pause-coins').textContent = this.coins;
+            this.controls.unlock();
+        } else {
+            pauseMenu.style.display = 'none';
+            if (this.gameStarted) {
+                this.controls.lock();
+            }
+        }
+    }
+
+    respawnAtCheckpoint() {
+        this.camera.position.set(
+            this.lastCheckpoint.x,
+            this.lastCheckpoint.y,
+            this.lastCheckpoint.z
+        );
+        this.velocity.set(0, 0, 0);
+    }
+
     startGame() {
         document.getElementById('instructions').classList.add('hidden');
         this.controls.lock();
         this.gameStarted = true;
+        this.startTime = performance.now();
     }
 
     restartGame() {
@@ -502,6 +916,7 @@ class ParkourGame {
         
         let onPlatform = false;
         let highestPlatform = -Infinity;
+        let landedPlatformData = null;
         
         for (let platform of this.platforms) {
             // Check if player is horizontally within platform bounds (with player radius)
@@ -519,27 +934,62 @@ class ParkourGame {
                     if (platformTop > highestPlatform) {
                         highestPlatform = platformTop;
                         onPlatform = true;
+                        landedPlatformData = platform;
                     }
                 }
             }
         }
         
         if (onPlatform && highestPlatform !== -Infinity) {
+            // Check if just landed (was in air before)
+            const justLanded = !this.canJump && this.velocity.y < -5;
+            
             this.camera.position.y = highestPlatform + this.PLAYER_HEIGHT;
             this.velocity.y = 0; // Stop vertical velocity when landing
             this.canJump = true;
+            this.doubleJumpUsed = false; // Reset double jump on landing
+            
+            // Create landing particles
+            if (justLanded) {
+                this.createLandingParticles(playerX, highestPlatform, playerZ);
+            }
         } else {
             this.canJump = false;
         }
         
-        return onPlatform;
+        return landedPlatformData;
     }
 
     updatePhysics(delta) {
-        if (!this.gameStarted) return;
+        if (!this.gameStarted || this.isPaused) return;
+
+        // Update timer
+        this.elapsedTime = (performance.now() - this.startTime) / 1000;
 
         // Apply gravity
         this.velocity.y -= this.GRAVITY * delta;
+        
+        // Update stamina
+        if (this.isSprinting && (this.moveForward || this.moveBackward || this.moveLeft || this.moveRight)) {
+            this.currentStamina -= this.sprintStaminaCost * delta;
+            if (this.currentStamina < 0) {
+                this.currentStamina = 0;
+                this.isSprinting = false;
+            }
+        } else {
+            this.currentStamina += this.staminaRegenRate * delta;
+            if (this.currentStamina > this.maxStamina) {
+                this.currentStamina = this.maxStamina;
+            }
+        }
+        
+        // Update power-up timer
+        if (this.powerUpActive) {
+            this.powerUpTimer -= delta;
+            if (this.powerUpTimer <= 0) {
+                this.deactivatePowerUp();
+            }
+        }
 
         // Movement
         this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
@@ -563,7 +1013,12 @@ class ParkourGame {
         this.camera.position.y += this.velocity.y * delta;
 
         // Check collision after movement
-        this.checkCollision();
+        const landedPlatform = this.checkCollision();
+        
+        // Check for bounce pad
+        if (landedPlatform && landedPlatform.isBouncePad) {
+            this.velocity.y = 25; // Super jump
+        }
 
         // Apply friction
         this.velocity.x *= 0.9;
@@ -573,13 +1028,213 @@ class ParkourGame {
         this.currentHeight = Math.max(0, this.camera.position.y - this.PLAYER_HEIGHT);
         this.maxHeight = Math.max(this.maxHeight, this.currentHeight);
 
+        // Check for checkpoints
+        if (this.currentHeight >= this.nextCheckpointHeight) {
+            this.createCheckpoint(this.nextCheckpointHeight);
+            this.nextCheckpointHeight += this.checkpointInterval;
+        }
+        
+        // Check checkpoint activation
+        this.checkCheckpoints();
+        
+        // Check collectibles
+        this.checkCollectibles();
+        
+        // Update moving platforms
+        this.updateMovingPlatforms(delta);
+        
+        // Update collectible animations
+        this.updateCollectibles(delta);
+        
+        // Update particles
+        this.updateParticles(delta);
+        
+        // Update skybox based on height
+        this.updateSkybox();
+        
+        // Update FOV for sprint effect
+        if (this.isSprinting) {
+            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 80, 0.1);
+        } else {
+            this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, 75, 0.1);
+        }
+        this.camera.updateProjectionMatrix();
+        
+        // Check achievements
+        this.checkAchievements();
+
         // Check if we need to generate more platforms
         this.checkAndGenerateMorePlatforms();
 
         // Update UI
         document.getElementById('height-display').textContent = `Height: ${Math.floor(this.currentHeight)}m`;
+        document.getElementById('coins-display').textContent = `Coins: ${this.coins}/${this.totalCoins}`;
+        document.getElementById('timer-display').textContent = `Time: ${this.formatTime(this.elapsedTime)}`;
         const horizontalSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
         document.getElementById('speed-display').textContent = horizontalSpeed.toFixed(1);
+        
+        // Update stamina bar
+        const staminaBar = document.getElementById('stamina-bar');
+        staminaBar.style.width = `${(this.currentStamina / this.maxStamina) * 100}%`;
+        
+        // Update power-up display
+        if (this.powerUpActive) {
+            document.getElementById('powerup-display').textContent = `Power-Up: ${this.powerUpActive} (${this.powerUpTimer.toFixed(1)}s)`;
+            document.getElementById('powerup-display').style.display = 'block';
+        } else {
+            document.getElementById('powerup-display').style.display = 'none';
+        }
+    }
+
+    formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    checkCheckpoints() {
+        for (let checkpoint of this.checkpoints) {
+            if (!checkpoint.activated) {
+                const dist = this.camera.position.distanceTo(new THREE.Vector3(0, checkpoint.height, 0));
+                if (dist < 5 && Math.abs(this.camera.position.y - checkpoint.height) < 3) {
+                    checkpoint.activated = true;
+                    checkpoint.mesh.material.color.setHex(0xFFD700);
+                    checkpoint.mesh.material.emissive.setHex(0xFFD700);
+                    this.lastCheckpoint = {
+                        x: this.camera.position.x,
+                        y: checkpoint.height + this.PLAYER_HEIGHT,
+                        z: this.camera.position.z
+                    };
+                    console.log(`Checkpoint activated at ${checkpoint.height}m!`);
+                }
+            }
+        }
+    }
+
+    checkCollectibles() {
+        for (let collectible of this.collectibles) {
+            if (!collectible.collected) {
+                const dist = this.camera.position.distanceTo(collectible.position);
+                if (dist < 2) {
+                    collectible.collected = true;
+                    this.scene.remove(collectible.mesh);
+                    
+                    if (collectible.type === 'coin') {
+                        this.coins++;
+                        console.log(`Coin collected! ${this.coins}/${this.totalCoins}`);
+                    } else if (collectible.type === 'powerup') {
+                        this.activatePowerUp();
+                    }
+                }
+            }
+        }
+    }
+
+    activatePowerUp() {
+        this.hasDoubleJump = true;
+        this.powerUpActive = 'Double Jump';
+        this.powerUpTimer = 10;
+        console.log('Power-up activated: Double Jump!');
+    }
+
+    deactivatePowerUp() {
+        this.hasDoubleJump = false;
+        this.powerUpActive = null;
+        this.doubleJumpUsed = false;
+        console.log('Power-up expired');
+    }
+
+    updateMovingPlatforms(delta) {
+        for (let moving of this.movingPlatforms) {
+            moving.time += delta * moving.speed;
+            
+            if (moving.axis === 'x') {
+                moving.mesh.position.x = moving.startX + Math.sin(moving.time) * moving.range;
+            } else {
+                moving.mesh.position.z = moving.startZ + Math.sin(moving.time) * moving.range;
+            }
+            
+            // Update platform collision bounds
+            const platformData = this.platforms.find(p => p.mesh === moving.mesh);
+            if (platformData) {
+                platformData.minX = moving.mesh.position.x - 2;
+                platformData.maxX = moving.mesh.position.x + 2;
+                platformData.minZ = moving.mesh.position.z - 2;
+                platformData.maxZ = moving.mesh.position.z + 2;
+            }
+        }
+    }
+
+    updateCollectibles(delta) {
+        for (let collectible of this.collectibles) {
+            if (!collectible.collected) {
+                collectible.mesh.rotation.y += delta * 2;
+                collectible.mesh.position.y += Math.sin(Date.now() * 0.002) * 0.01;
+            }
+        }
+    }
+
+    updateSkybox() {
+        // Change sky colors based on height
+        const skyMat = this.skybox.material;
+        const height = this.currentHeight;
+        
+        if (height < 50) {
+            // Day - light blue
+            skyMat.uniforms.topColor.value.setHex(0x0077ff);
+            skyMat.uniforms.bottomColor.value.setHex(0xffffff);
+        } else if (height < 150) {
+            // Sunset - orange/pink
+            skyMat.uniforms.topColor.value.setHex(0xff6600);
+            skyMat.uniforms.bottomColor.value.setHex(0xff99cc);
+        } else if (height < 300) {
+            // Dusk - purple
+            skyMat.uniforms.topColor.value.setHex(0x330066);
+            skyMat.uniforms.bottomColor.value.setHex(0x9966cc);
+        } else {
+            // Night - dark blue/black
+            skyMat.uniforms.topColor.value.setHex(0x000033);
+            skyMat.uniforms.bottomColor.value.setHex(0x001a33);
+        }
+    }
+
+    checkAchievements() {
+        if (!this.achievements.height50 && this.currentHeight >= 50) {
+            this.achievements.height50 = true;
+            this.showAchievement('Sky Walker', 'Reached 50m!');
+        }
+        if (!this.achievements.height100 && this.currentHeight >= 100) {
+            this.achievements.height100 = true;
+            this.showAchievement('Cloud Jumper', 'Reached 100m!');
+        }
+        if (!this.achievements.height200 && this.currentHeight >= 200) {
+            this.achievements.height200 = true;
+            this.showAchievement('Star Seeker', 'Reached 200m!');
+        }
+        if (!this.achievements.height500 && this.currentHeight >= 500) {
+            this.achievements.height500 = true;
+            this.showAchievement('Space Pioneer', 'Reached 500m!');
+        }
+        if (!this.achievements.coins10 && this.coins >= 10) {
+            this.achievements.coins10 = true;
+            this.showAchievement('Coin Collector', 'Collected 10 coins!');
+        }
+        if (!this.achievements.coins50 && this.coins >= 50) {
+            this.achievements.coins50 = true;
+            this.showAchievement('Treasure Hunter', 'Collected 50 coins!');
+        }
+    }
+
+    showAchievement(title, description) {
+        const achievementDiv = document.getElementById('achievement-popup');
+        achievementDiv.innerHTML = `<strong>${title}</strong><br>${description}`;
+        achievementDiv.style.display = 'block';
+        
+        setTimeout(() => {
+            achievementDiv.style.display = 'none';
+        }, 3000);
+        
+        console.log(`🏆 Achievement Unlocked: ${title} - ${description}`);
     }
 
     loadModels() {

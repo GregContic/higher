@@ -100,24 +100,53 @@
     
     <div id="ui">
         <div id="height-display">Height: 0m</div>
+        <div id="coins-display">Coins: 0/0</div>
+        <div id="timer-display">Time: 0:00</div>
         <div>Speed: <span id="speed-display">0</span></div>
+        
+        <div id="stamina-container" style="margin-top: 10px; width: 200px; height: 20px; background: rgba(0,0,0,0.5); border: 2px solid white; border-radius: 10px; overflow: hidden;">
+            <div id="stamina-bar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #00ff00, #ffff00); transition: width 0.1s;"></div>
+        </div>
+        <div style="font-size: 12px; margin-top: 2px;">Stamina</div>
+        
+        <div id="powerup-display" style="display: none; margin-top: 10px; color: #00ff00; font-weight: bold;"></div>
+        
         <div style="margin-top: 10px; font-size: 14px;">
             <div>WASD - Move</div>
-            <div>Space - Jump</div>
+            <div>Space - Jump (Double Jump with power-up)</div>
             <div>Mouse - Look Around</div>
             <div>Q + W - Sprint</div>
+            <div>R - Respawn at Checkpoint</div>
+            <div>ESC - Pause</div>
         </div>
     </div>
+    
+    <div id="achievement-popup" style="display: none; position: absolute; top: 100px; left: 50%; transform: translateX(-50%); background: rgba(255, 215, 0, 0.9); color: black; padding: 20px 40px; border-radius: 10px; font-size: 18px; text-align: center; z-index: 300; border: 3px solid gold; box-shadow: 0 0 20px gold;"></div>
 
     <div id="crosshair"></div>
 
     <div id="instructions">
         <h1>HIGHER</h1>
         <p>Climb as high as you can!</p>
-        <p>Use WASD to move, Space to jump</p>
-        <p>Hold Q + W together to sprint forward</p>
-        <p>Be careful - if you fall, you'll have to climb back up!</p>
+        <p><strong>Controls:</strong></p>
+        <p>WASD - Move | Space - Jump | Q+W - Sprint | R - Respawn</p>
+        <p><strong>Features:</strong></p>
+        <p>🎯 Collect coins and power-ups</p>
+        <p>💚 Green checkpoints save your progress every 50m</p>
+        <p>🔵 Blue platforms move back and forth</p>
+        <p>💗 Pink bounce pads launch you high!</p>
+        <p>⚡ Green crystals give you double jump power</p>
+        <p>Be careful - if you fall, press R to respawn at last checkpoint!</p>
         <button id="start-button">Start Game</button>
+    </div>
+    
+    <div id="pause-menu" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-align: center; font-size: 20px; background: rgba(0, 0, 0, 0.9); padding: 40px; border-radius: 10px; z-index: 200;">
+        <h2>PAUSED</h2>
+        <p style="margin: 20px 0;">Height: <span id="pause-height">0</span>m</p>
+        <p>Time: <span id="pause-time">0:00</span></p>
+        <p>Coins: <span id="pause-coins">0</span></p>
+        <p style="margin-top: 30px; font-size: 16px;">Press ESC to resume</p>
+        <p style="font-size: 16px;">Press R to respawn at checkpoint</p>
     </div>
 
     <script type="importmap">
