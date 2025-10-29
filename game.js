@@ -29,7 +29,19 @@ class ParkourGame {
         this.platformGenerationThreshold = 100; // Generate more when within this distance
         
         // FBX loader and models
-        this.fbxLoader = new FBXLoader();
+        this.loadingManager = new THREE.LoadingManager();
+        
+        // Set up loading manager to handle texture paths
+        this.loadingManager.setURLModifier((url) => {
+            // If it's looking for a texture, make sure it looks in the textures folder
+            if (url.includes('.png') || url.includes('.jpg') || url.includes('.jpeg') || url.includes('.tga')) {
+                const filename = url.split('/').pop().split('\\').pop();
+                return `textures/${filename}`;
+            }
+            return url;
+        });
+        
+        this.fbxLoader = new FBXLoader(this.loadingManager);
         this.loadedModels = {};
         this.modelsLoaded = false;
         this.modelFiles = [
@@ -574,17 +586,20 @@ class ParkourGame {
         let loadedCount = 0;
         const totalModels = this.modelFiles.length;
         
-        // Define better colors for different model types
-        const modelColors = {
-            'Barrier.fbx': 0xff4444,
-            'BigWoodenBox.fbx': 0x8B4513,
-            'ConcreteBarrier.fbx': 0x808080,
-            'ConcreteBarrierDemaged.fbx': 0x606060,
-            'ConcreteBarrierWithFence.fbx': 0x707070,
-            'ConcreteBarrierWithFenceDemaged.fbx': 0x505050,
-            'Cone.fbx': 0xFF6600,
-            'WoodenBox.fbx': 0xA0522D
-        };
+        // Pre-load the texture to ensure it's available
+        const textureLoader = new THREE.TextureLoader();
+        const objectTexture = textureLoader.load('textures/ObjectsTexture.png', 
+            (texture) => {
+                console.log('ObjectsTexture.png loaded successfully!');
+                texture.encoding = THREE.sRGBEncoding;
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+            },
+            undefined,
+            (error) => {
+                console.error('Error loading ObjectsTexture.png:', error);
+            }
+        );
         
         this.modelFiles.forEach(filename => {
             this.fbxLoader.load(
@@ -593,37 +608,39 @@ class ParkourGame {
                     // Scale down the models
                     object.scale.set(0.01, 0.01, 0.01);
                     
-                    const baseColor = modelColors[filename] || 0x888888;
-                    
                     object.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
                             child.receiveShadow = true;
                             
-                            // Apply better materials with colors
-                            const newMaterial = new THREE.MeshStandardMaterial({
-                                color: baseColor,
-                                roughness: 0.7,
-                                metalness: 0.3,
-                                side: THREE.DoubleSide
-                            });
-                            
-                            // If the model has a texture map, try to preserve it
-                            if (child.material && child.material.map) {
-                                newMaterial.map = child.material.map;
-                                newMaterial.map.needsUpdate = true;
+                            // Apply the texture to the materials
+                            if (child.material) {
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(mat => {
+                                        mat.side = THREE.FrontSide;
+                                        // Apply the loaded texture
+                                        mat.map = objectTexture;
+                                        mat.needsUpdate = true;
+                                        console.log(`Applied texture to ${filename} material (array)`);
+                                    });
+                                } else {
+                                    child.material.side = THREE.FrontSide;
+                                    // Apply the loaded texture
+                                    child.material.map = objectTexture;
+                                    child.material.needsUpdate = true;
+                                    console.log(`Applied texture to ${filename} material`);
+                                }
                             }
-                            
-                            child.material = newMaterial;
                         }
                     });
                     
+                    console.log(`Loaded ${filename} with texture applied`);
                     this.loadedModels[filename] = object;
                     loadedCount++;
                     
                     if (loadedCount === totalModels) {
                         this.modelsLoaded = true;
-                        console.log('All models loaded with enhanced materials!');
+                        console.log('All models loaded successfully with textures!');
                     }
                 },
                 (xhr) => {
