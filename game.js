@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
 class ParkourGame {
     constructor() {
@@ -26,6 +27,22 @@ class ParkourGame {
         this.groundLevel = 0;
         this.highestPlatformGenerated = 0;
         this.platformGenerationThreshold = 100; // Generate more when within this distance
+        
+        // FBX loader and models
+        this.fbxLoader = new FBXLoader();
+        this.loadedModels = {};
+        this.modelsLoaded = false;
+        this.modelFiles = [
+            'Barrier.fbx',
+            'BigWoodenBox.fbx',
+            'ConcreteBarrier.fbx',
+            'ConcreteBarrierDemaged.fbx',
+            'ConcreteBarrierWithFence.fbx',
+            'ConcreteBarrierWithFenceDemaged.fbx',
+            'Cone.fbx',
+            'WoodenBox.fbx'
+        ];
+        this.objectPlatforms = []; // Track 3D model platforms separately
         
         // Constants
         this.GRAVITY = 30;
@@ -73,6 +90,9 @@ class ParkourGame {
 
         // Create world
         this.createWorld();
+        
+        // Load FBX models
+        this.loadModels();
 
         // Event listeners
         this.setupEventListeners();
@@ -107,55 +127,103 @@ class ParkourGame {
         let height = startHeight;
         
         while (height < endHeight) {
-            const x = (Math.random() - 0.5) * 12;
-            const z = (Math.random() - 0.5) * 12;
-            const width = 4 + Math.random() * 3;
-            const depth = 4 + Math.random() * 3;
+            // Decide whether to create a regular platform or 3D model platform
+            const use3DModel = this.modelsLoaded && Math.random() > 0.4;
             
-            this.createPlatform(x, height, z, width, 0.5, depth);
-            
-            // Add some stepping stone platforms between main platforms
-            if (Math.random() > 0.5) {
-                const offsetX = (Math.random() - 0.5) * 8;
-                const offsetZ = (Math.random() - 0.5) * 8;
-                this.createPlatform(
-                    x + offsetX, 
-                    height + 1.2, 
-                    z + offsetZ, 
-                    2.5 + Math.random() * 2, 
-                    0.3, 
-                    2.5 + Math.random() * 2
-                );
+            if (use3DModel) {
+                // Create 3D model platform
+                const x = (Math.random() - 0.5) * 15;
+                const z = (Math.random() - 0.5) * 15;
+                this.add3DModelPlatform(x, height, z);
+            } else {
+                // Create regular platform
+                const x = (Math.random() - 0.5) * 12;
+                const z = (Math.random() - 0.5) * 12;
+                const width = 4 + Math.random() * 3;
+                const depth = 4 + Math.random() * 3;
+                
+                this.createPlatform(x, height, z, width, 0.5, depth);
             }
             
-            // Add occasional floating cubes as obstacles
-            if (Math.random() > 0.8) {
-                const cubeX = (Math.random() - 0.5) * 20;
-                const cubeZ = (Math.random() - 0.5) * 20;
-                const size = 1 + Math.random() * 2;
+            // Add some stepping stone platforms between main platforms
+            if (Math.random() > 0.6) {
+                const offsetX = (Math.random() - 0.5) * 10;
+                const offsetZ = (Math.random() - 0.5) * 10;
                 
-                const geometry = new THREE.BoxGeometry(size, size, size);
-                const material = new THREE.MeshStandardMaterial({ 
-                    color: Math.random() * 0xffffff,
-                    roughness: 0.7,
-                    metalness: 0.3
-                });
-                const cube = new THREE.Mesh(geometry, material);
-                cube.position.set(cubeX, height, cubeZ);
-                cube.castShadow = true;
-                cube.receiveShadow = true;
-                cube.rotation.set(
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI
-                );
-                this.scene.add(cube);
+                if (this.modelsLoaded && Math.random() > 0.5) {
+                    this.add3DModelPlatform(offsetX, height + 1.5, offsetZ);
+                } else {
+                    this.createPlatform(
+                        offsetX, 
+                        height + 1.2, 
+                        offsetZ, 
+                        2.5 + Math.random() * 2, 
+                        0.3, 
+                        2.5 + Math.random() * 2
+                    );
+                }
             }
             
             height += 2 + Math.random() * 2;
         }
         
         this.highestPlatformGenerated = endHeight;
+    }
+
+    add3DModelPlatform(x, y, z) {
+        const modelNames = Object.keys(this.loadedModels);
+        if (modelNames.length === 0) return;
+        
+        const randomModel = modelNames[Math.floor(Math.random() * modelNames.length)];
+        const originalModel = this.loadedModels[randomModel];
+        
+        if (originalModel) {
+            const modelClone = originalModel.clone();
+            
+            // Random scale for variety (0.8 to 1.5 times original size)
+            const scale = 0.008 + Math.random() * 0.007;
+            modelClone.scale.set(scale, scale, scale);
+            
+            modelClone.position.set(x, y, z);
+            modelClone.rotation.y = Math.random() * Math.PI * 2;
+            
+            // Enable shadows and ensure materials are properly cloned
+            modelClone.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    
+                    // Clone materials to avoid shared material issues
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material = child.material.map(mat => mat.clone());
+                        } else {
+                            child.material = child.material.clone();
+                        }
+                    }
+                }
+            });
+            
+            this.scene.add(modelClone);
+            
+            // Calculate bounding box for collision
+            const box = new THREE.Box3().setFromObject(modelClone);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            
+            // Add to platforms array for collision detection
+            this.platforms.push({
+                mesh: modelClone,
+                minX: x - size.x / 2,
+                maxX: x + size.x / 2,
+                minZ: z - size.z / 2,
+                maxZ: z + size.z / 2,
+                topY: y + size.y / 2,
+                is3DModel: true
+            });
+            
+            this.objectPlatforms.push(modelClone);
+        }
     }
 
     checkAndGenerateMorePlatforms() {
@@ -181,8 +249,28 @@ class ParkourGame {
             
             if (platform.topY < this.currentHeight - cleanupDistance) {
                 this.scene.remove(platform.mesh);
-                platform.mesh.geometry.dispose();
-                platform.mesh.material.dispose();
+                
+                // Dispose resources appropriately
+                if (platform.is3DModel) {
+                    // For 3D models, traverse and dispose
+                    platform.mesh.traverse((child) => {
+                        if (child.isMesh) {
+                            if (child.geometry) child.geometry.dispose();
+                            if (child.material) {
+                                if (Array.isArray(child.material)) {
+                                    child.material.forEach(mat => mat.dispose());
+                                } else {
+                                    child.material.dispose();
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    // For regular platforms
+                    if (platform.mesh.geometry) platform.mesh.geometry.dispose();
+                    if (platform.mesh.material) platform.mesh.material.dispose();
+                }
+                
                 this.platforms.splice(i, 1);
             }
         }
@@ -190,15 +278,100 @@ class ParkourGame {
 
     createPlatform(x, y, z, width, height, depth, color) {
         const geometry = new THREE.BoxGeometry(width, height, depth);
-        const material = new THREE.MeshStandardMaterial({ 
-            color: color || this.getColorByHeight(y),
-            roughness: 0.8,
-            metalness: 0.2
-        });
+        
+        // Create more interesting materials based on height and randomness
+        let material;
+        const platformType = Math.random();
+        
+        if (color) {
+            // Special platforms (starting platform, walls) use solid color
+            material = new THREE.MeshStandardMaterial({ 
+                color: color,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+        } else if (platformType < 0.3) {
+            // Striped pattern
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            const baseColor = this.getColorByHeight(y);
+            ctx.fillStyle = '#' + baseColor.toString(16).padStart(6, '0');
+            ctx.fillRect(0, 0, 128, 128);
+            
+            ctx.fillStyle = this.lightenColor(baseColor, 0.3);
+            for (let i = 0; i < 128; i += 16) {
+                ctx.fillRect(i, 0, 8, 128);
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(width / 2, depth / 2);
+            
+            material = new THREE.MeshStandardMaterial({ 
+                map: texture,
+                roughness: 0.7,
+                metalness: 0.3
+            });
+        } else if (platformType < 0.6) {
+            // Checkered pattern
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            const baseColor = this.getColorByHeight(y);
+            const color1 = '#' + baseColor.toString(16).padStart(6, '0');
+            const color2 = this.lightenColor(baseColor, 0.2);
+            
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    ctx.fillStyle = (i + j) % 2 === 0 ? color1 : color2;
+                    ctx.fillRect(i * 16, j * 16, 16, 16);
+                }
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(width / 2, depth / 2);
+            
+            material = new THREE.MeshStandardMaterial({ 
+                map: texture,
+                roughness: 0.6,
+                metalness: 0.4
+            });
+        } else {
+            // Solid color with edge highlights
+            const baseColor = this.getColorByHeight(y);
+            material = new THREE.MeshStandardMaterial({ 
+                color: baseColor,
+                roughness: 0.5 + Math.random() * 0.3,
+                metalness: 0.2 + Math.random() * 0.3,
+                emissive: baseColor,
+                emissiveIntensity: 0.1
+            });
+        }
+        
         const platform = new THREE.Mesh(geometry, material);
         platform.position.set(x, y, z);
         platform.castShadow = true;
         platform.receiveShadow = true;
+        
+        // Add edge outline for better visibility
+        const edges = new THREE.EdgesGeometry(geometry);
+        const lineMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x000000, 
+            linewidth: 2,
+            opacity: 0.3,
+            transparent: true
+        });
+        const wireframe = new THREE.LineSegments(edges, lineMaterial);
+        platform.add(wireframe);
+        
         this.scene.add(platform);
         
         this.platforms.push({
@@ -209,6 +382,13 @@ class ParkourGame {
             maxZ: z + depth / 2,
             topY: y + height / 2
         });
+    }
+
+    lightenColor(color, amount) {
+        const r = Math.min(255, ((color >> 16) & 0xFF) + Math.floor(255 * amount));
+        const g = Math.min(255, ((color >> 8) & 0xFF) + Math.floor(255 * amount));
+        const b = Math.min(255, (color & 0xFF) + Math.floor(255 * amount));
+        return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
     }
 
     getColorByHeight(height) {
@@ -388,6 +568,80 @@ class ParkourGame {
         document.getElementById('height-display').textContent = `Height: ${Math.floor(this.currentHeight)}m`;
         const horizontalSpeed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
         document.getElementById('speed-display').textContent = horizontalSpeed.toFixed(1);
+    }
+
+    loadModels() {
+        let loadedCount = 0;
+        const totalModels = this.modelFiles.length;
+        
+        // Define better colors for different model types
+        const modelColors = {
+            'Barrier.fbx': 0xff4444,
+            'BigWoodenBox.fbx': 0x8B4513,
+            'ConcreteBarrier.fbx': 0x808080,
+            'ConcreteBarrierDemaged.fbx': 0x606060,
+            'ConcreteBarrierWithFence.fbx': 0x707070,
+            'ConcreteBarrierWithFenceDemaged.fbx': 0x505050,
+            'Cone.fbx': 0xFF6600,
+            'WoodenBox.fbx': 0xA0522D
+        };
+        
+        this.modelFiles.forEach(filename => {
+            this.fbxLoader.load(
+                `textures/${filename}`,
+                (object) => {
+                    // Scale down the models
+                    object.scale.set(0.01, 0.01, 0.01);
+                    
+                    const baseColor = modelColors[filename] || 0x888888;
+                    
+                    object.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            
+                            // Apply better materials with colors
+                            const newMaterial = new THREE.MeshStandardMaterial({
+                                color: baseColor,
+                                roughness: 0.7,
+                                metalness: 0.3,
+                                side: THREE.DoubleSide
+                            });
+                            
+                            // If the model has a texture map, try to preserve it
+                            if (child.material && child.material.map) {
+                                newMaterial.map = child.material.map;
+                                newMaterial.map.needsUpdate = true;
+                            }
+                            
+                            child.material = newMaterial;
+                        }
+                    });
+                    
+                    this.loadedModels[filename] = object;
+                    loadedCount++;
+                    
+                    if (loadedCount === totalModels) {
+                        this.modelsLoaded = true;
+                        console.log('All models loaded with enhanced materials!');
+                    }
+                },
+                (xhr) => {
+                    // Loading progress
+                    if (xhr.lengthComputable) {
+                        const percentComplete = (xhr.loaded / xhr.total) * 100;
+                        console.log(`Loading ${filename}: ${percentComplete.toFixed(2)}%`);
+                    }
+                },
+                (error) => {
+                    console.error(`Error loading ${filename}:`, error);
+                    loadedCount++;
+                    if (loadedCount === totalModels) {
+                        this.modelsLoaded = true;
+                    }
+                }
+            );
+        });
     }
 
     animate() {
