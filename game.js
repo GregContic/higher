@@ -1,6 +1,10 @@
+console.log('Game.js is loading...');
+
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+console.log('Three.js imported successfully');
 
 class ParkourGame {
     constructor() {
@@ -535,25 +539,28 @@ class ParkourGame {
             // Heavy preference for 3D models (70% in beginning, tapering to 50% later)
             const modelChance = height < 50 ? 0.2 : height < 150 ? 0.35 : 0.45;
             
+            // Reduce horizontal spread for easier jumping
+            const horizontalSpread = height < 100 ? 12 : 10;
+            
             if (this.modelsLoaded && platformRoll > modelChance) {
                 // Create 3D model platform (70-55% chance depending on height)
-                const x = (Math.random() - 0.5) * 15;
-                const z = (Math.random() - 0.5) * 15;
+                const x = (Math.random() - 0.5) * horizontalSpread;
+                const z = (Math.random() - 0.5) * horizontalSpread;
                 this.add3DModelPlatform(x, height, z);
             } else if (platformRoll > modelChance - 0.05 && platformRoll <= modelChance) {
                 // Moving platform (5% chance)
-                const x = (Math.random() - 0.5) * 12;
-                const z = (Math.random() - 0.5) * 12;
+                const x = (Math.random() - 0.5) * horizontalSpread;
+                const z = (Math.random() - 0.5) * horizontalSpread;
                 this.createMovingPlatform(x, height, z);
             } else if (platformRoll > modelChance - 0.10 && platformRoll <= modelChance - 0.05) {
                 // Bounce pad (5% chance)
-                const x = (Math.random() - 0.5) * 12;
-                const z = (Math.random() - 0.5) * 12;
+                const x = (Math.random() - 0.5) * horizontalSpread;
+                const z = (Math.random() - 0.5) * horizontalSpread;
                 this.createBouncePad(x, height, z);
             } else {
                 // Create regular platform (20-35% chance)
-                const x = (Math.random() - 0.5) * 12;
-                const z = (Math.random() - 0.5) * 12;
+                const x = (Math.random() - 0.5) * horizontalSpread;
+                const z = (Math.random() - 0.5) * horizontalSpread;
                 const width = 4 + Math.random() * 3;
                 const depth = 4 + Math.random() * 3;
                 
@@ -563,30 +570,49 @@ class ParkourGame {
             // Add more collectible coins in the beginning
             const coinChance = height < 50 ? 0.5 : 0.7;
             if (Math.random() > coinChance) {
-                const coinX = (Math.random() - 0.5) * 10;
-                const coinZ = (Math.random() - 0.5) * 10;
+                const coinX = (Math.random() - 0.5) * 8;
+                const coinZ = (Math.random() - 0.5) * 8;
                 this.createCoin(coinX, height + 2, coinZ);
             }
             
             // Add power-ups occasionally
             if (Math.random() > 0.95) {
-                const powerX = (Math.random() - 0.5) * 10;
-                const powerZ = (Math.random() - 0.5) * 10;
+                const powerX = (Math.random() - 0.5) * 8;
+                const powerZ = (Math.random() - 0.5) * 8;
                 this.createPowerUp(powerX, height + 2, powerZ);
             }
             
-            // Add many more stepping stone platforms (80% chance, most using 3D models)
-            if (Math.random() > 0.2) {
-                const offsetX = (Math.random() - 0.5) * 10;
-                const offsetZ = (Math.random() - 0.5) * 10;
+            // Add many more stepping stone platforms (85% chance, most using 3D models)
+            if (Math.random() > 0.15) {
+                const offsetX = (Math.random() - 0.5) * 8;
+                const offsetZ = (Math.random() - 0.5) * 8;
                 
                 if (this.modelsLoaded && Math.random() > 0.25) {
                     // 75% of stepping stones are 3D models
+                    this.add3DModelPlatform(offsetX, height + 1.2, offsetZ);
+                } else {
+                    this.createPlatform(
+                        offsetX, 
+                        height + 1.0, 
+                        offsetZ, 
+                        2.5 + Math.random() * 2, 
+                        0.3, 
+                        2.5 + Math.random() * 2
+                    );
+                }
+            }
+            
+            // Add a second stepping stone for better connectivity (60% chance)
+            if (Math.random() > 0.4) {
+                const offsetX = (Math.random() - 0.5) * 8;
+                const offsetZ = (Math.random() - 0.5) * 8;
+                
+                if (this.modelsLoaded && Math.random() > 0.25) {
                     this.add3DModelPlatform(offsetX, height + 1.5, offsetZ);
                 } else {
                     this.createPlatform(
                         offsetX, 
-                        height + 1.2, 
+                        height + 1.3, 
                         offsetZ, 
                         2.5 + Math.random() * 2, 
                         0.3, 
@@ -597,12 +623,15 @@ class ParkourGame {
             
             // Sometimes add an extra 3D model platform for variety
             if (this.modelsLoaded && Math.random() > 0.7) {
-                const extraX = (Math.random() - 0.5) * 12;
-                const extraZ = (Math.random() - 0.5) * 12;
+                const extraX = (Math.random() - 0.5) * 9;
+                const extraZ = (Math.random() - 0.5) * 9;
                 this.add3DModelPlatform(extraX, height + 0.8, extraZ);
             }
             
-            height += 2 + Math.random() * 2;
+            // Reduced vertical spacing - makes it easier to jump between platforms
+            // Early game: 1.5-2.5m, later: 1.8-2.8m
+            const verticalGap = height < 100 ? (1.5 + Math.random() * 1.0) : (1.8 + Math.random() * 1.0);
+            height += verticalGap;
         }
         
         this.highestPlatformGenerated = endHeight;
@@ -789,10 +818,12 @@ class ParkourGame {
             const box = new THREE.Box3().setFromObject(modelClone);
             
             // Get min and max directly from the bounding box
-            const minX = box.min.x;
-            const maxX = box.max.x;
-            const minZ = box.min.z;
-            const maxZ = box.max.z;
+            // Add generous padding to make models easier to land on (2 units on each side)
+            const padding = 2.0;
+            const minX = box.min.x - padding;
+            const maxX = box.max.x + padding;
+            const minZ = box.min.z - padding;
+            const maxZ = box.max.z + padding;
             const topY = box.max.y;
             
             // Add to platforms array for collision detection
@@ -1112,10 +1143,13 @@ class ParkourGame {
     }
 
     startGame() {
+        console.log('Starting game...');
         document.getElementById('instructions').classList.add('hidden');
+        console.log('Attempting to lock pointer...');
         this.controls.lock();
         this.gameStarted = true;
         this.startTime = performance.now();
+        console.log('Game started! gameStarted:', this.gameStarted);
     }
 
     restartGame() {
@@ -1148,8 +1182,8 @@ class ParkourGame {
                 const playerBottom = playerY - this.PLAYER_HEIGHT;
                 const platformTop = platform.topY;
                 
-                // More lenient collision detection (increased tolerance)
-                const tolerance = 1.0; // Increased from 0.5
+                // More lenient collision detection for 3D models (increased tolerance)
+                const tolerance = platform.is3DModel ? 2.5 : 1.0; // Extra tolerance for 3D models
                 
                 // If player's feet are near the platform top and falling or on it
                 if (playerBottom <= platformTop + tolerance && 
@@ -1239,10 +1273,28 @@ class ParkourGame {
         this.camera.position.y += this.velocity.y * delta;
 
         // Check collision after movement
-        // Check for bounce pad
-        if (landedPlatform && landedPlatform.isBouncePad) {
-            this.velocity.y = 25; // Super jump
-            this.playBounceSound();
+        const landedPlatformData = this.checkCollision();
+        
+        if (landedPlatformData) {
+            this.camera.position.y = landedPlatformData.topY + this.PLAYER_HEIGHT;
+            this.velocity.y = 0;
+            this.canJump = true;
+            
+            // Check for bounce pad
+            if (landedPlatformData.isBouncePad) {
+                this.velocity.y = 25; // Super jump
+                this.playBounceSound();
+            }
+            
+            // Create landing particles
+            this.createLandingParticles();
+            
+            if (!this.wasOnGround) {
+                this.playLandSound();
+            }
+            this.wasOnGround = true;
+        } else {
+            this.wasOnGround = false;
         }
 
         // Apply friction
@@ -1331,6 +1383,8 @@ class ParkourGame {
         for (let checkpoint of this.checkpoints) {
             if (!checkpoint.activated) {
                 const dist = this.camera.position.distanceTo(new THREE.Vector3(0, checkpoint.height, 0));
+                if (dist < 5 && Math.abs(this.camera.position.y - checkpoint.height) < 3) {
+                    checkpoint.activated = true;
                     checkpoint.mesh.material.color.setHex(0xFFD700);
                     checkpoint.mesh.material.emissive.setHex(0xFFD700);
                     this.lastCheckpoint = {
@@ -1350,6 +1404,9 @@ class ParkourGame {
             if (!collectible.collected) {
                 const dist = this.camera.position.distanceTo(collectible.position);
                 if (dist < 2) {
+                    collectible.collected = true;
+                    this.scene.remove(collectible.mesh);
+                    
                     if (collectible.type === 'coin') {
                         this.coins++;
                         this.playCoinSound();
@@ -1455,6 +1512,9 @@ class ParkourGame {
         if (!this.achievements.coins50 && this.coins >= 50) {
             this.achievements.coins50 = true;
             this.showAchievement('Treasure Hunter', 'Collected 50 coins!');
+        }
+    }
+    
     showAchievement(title, description) {
         const achievementDiv = document.getElementById('achievement-popup');
         achievementDiv.innerHTML = `<strong>${title}</strong><br>${description}`;
