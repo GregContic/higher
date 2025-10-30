@@ -276,14 +276,210 @@ class ParkourGame {
     }
 
     setupAudio() {
-        // Audio will be added later - placeholder for now
+        // Create audio context
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.masterVolume = 0.3; // Overall volume control
+        
         this.sounds = {
-            jump: null,
-            land: null,
-            coin: null,
-            checkpoint: null,
-            music: null
+            enabled: true
         };
+        
+        console.log('Audio system initialized');
+    }
+
+    playJumpSound() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.frequency.setValueAtTime(300, ctx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(500, ctx.currentTime + 0.1);
+        
+        gainNode.gain.setValueAtTime(this.masterVolume * 0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.1);
+    }
+
+    playLandSound() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(150, ctx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.15);
+        
+        gainNode.gain.setValueAtTime(this.masterVolume * 0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.15);
+    }
+
+    playCoinSound() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(1200, ctx.currentTime + 0.05);
+        
+        gainNode.gain.setValueAtTime(this.masterVolume * 0.4, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.2);
+    }
+
+    playCheckpointSound() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        
+        // Play a pleasant chord
+        const frequencies = [523.25, 659.25, 783.99]; // C, E, G chord
+        
+        frequencies.forEach((freq, index) => {
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
+            
+            gainNode.gain.setValueAtTime(this.masterVolume * 0.2, ctx.currentTime + index * 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5 + index * 0.05);
+            
+            oscillator.start(ctx.currentTime + index * 0.05);
+            oscillator.stop(ctx.currentTime + 0.5 + index * 0.05);
+        });
+    }
+
+    playPowerUpSound() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(200, ctx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3);
+        
+        gainNode.gain.setValueAtTime(this.masterVolume * 0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
+    }
+
+    playBounceSound() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(400, ctx.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.2);
+        
+        gainNode.gain.setValueAtTime(this.masterVolume * 0.4, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.2);
+    }
+
+    playAchievementSound() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        
+        // Triumphant fanfare
+        const melody = [523.25, 659.25, 783.99, 1046.50]; // C, E, G, high C
+        
+        melody.forEach((freq, index) => {
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(freq, ctx.currentTime);
+            
+            const startTime = ctx.currentTime + index * 0.1;
+            gainNode.gain.setValueAtTime(this.masterVolume * 0.3, startTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + 0.3);
+        });
+    }
+
+    playAmbientWind() {
+        if (!this.sounds.enabled) return;
+        
+        const ctx = this.audioContext;
+        
+        // Create wind noise effect
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+        
+        const whiteNoise = ctx.createBufferSource();
+        whiteNoise.buffer = noiseBuffer;
+        whiteNoise.loop = true;
+        
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 300;
+        
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = this.masterVolume * 0.05 * Math.min(this.currentHeight / 100, 1);
+        
+        whiteNoise.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        whiteNoise.start(ctx.currentTime);
+        
+        // Stop after 2 seconds
+        setTimeout(() => {
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
+            whiteNoise.stop(ctx.currentTime + 1);
+        }, 2000);
     }
 
     createWorld() {
@@ -586,28 +782,35 @@ class ParkourGame {
             
             this.scene.add(modelClone);
             
-            // Calculate bounding box for collision - make it slightly more generous
-            const box = new THREE.Box3().setFromObject(modelClone);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
+            // Force update the world matrix
+            modelClone.updateMatrixWorld(true);
             
-            // Expand collision bounds slightly for easier landing
-            const expandFactor = 1.1;
+            // Calculate bounding box for collision AFTER position is set
+            const box = new THREE.Box3().setFromObject(modelClone);
+            
+            // Get min and max directly from the bounding box
+            const minX = box.min.x;
+            const maxX = box.max.x;
+            const minZ = box.min.z;
+            const maxZ = box.max.z;
+            const topY = box.max.y;
             
             // Add to platforms array for collision detection
-            this.platforms.push({
+            const platformData = {
                 mesh: modelClone,
-                minX: center.x - (size.x * expandFactor) / 2,
-                maxX: center.x + (size.x * expandFactor) / 2,
-                minZ: center.z - (size.z * expandFactor) / 2,
-                maxZ: center.z + (size.z * expandFactor) / 2,
-                topY: box.max.y,
+                minX: minX,
+                maxX: maxX,
+                minZ: minZ,
+                maxZ: maxZ,
+                topY: topY,
                 is3DModel: true
-            });
+            };
             
+            this.platforms.push(platformData);
             this.objectPlatforms.push(modelClone);
+            
+            // Debug log to verify collision bounds
+            console.log(`3D Platform added at (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}) - Bounds: X[${minX.toFixed(1)}, ${maxX.toFixed(1)}] Z[${minZ.toFixed(1)}, ${maxZ.toFixed(1)}] TopY: ${topY.toFixed(1)}`);
         }
     }
 
@@ -809,10 +1012,12 @@ class ParkourGame {
                         this.velocity.y = this.JUMP_VELOCITY;
                         this.canJump = false;
                         this.doubleJumpUsed = false;
+                        this.playJumpSound();
                     } else if (this.hasDoubleJump && !this.doubleJumpUsed) {
                         // Double jump
                         this.velocity.y = this.DOUBLE_JUMP_VELOCITY;
                         this.doubleJumpUsed = true;
+                        this.playJumpSound();
                     }
                     break;
                 case 'KeyR':
@@ -823,6 +1028,9 @@ class ParkourGame {
                     break;
                 case 'Escape':
                     this.togglePause();
+                    break;
+                case 'KeyM':
+                    this.toggleSound();
                     break;
                 case 'ShiftLeft':
                 case 'ShiftRight':
@@ -893,6 +1101,16 @@ class ParkourGame {
         this.velocity.set(0, 0, 0);
     }
 
+    toggleSound() {
+        this.sounds.enabled = !this.sounds.enabled;
+        const indicator = document.getElementById('sound-indicator');
+        if (this.sounds.enabled) {
+            indicator.textContent = '🔊 Sound: ON';
+        } else {
+            indicator.textContent = '🔇 Sound: OFF';
+        }
+    }
+
     startGame() {
         document.getElementById('instructions').classList.add('hidden');
         this.controls.lock();
@@ -920,17 +1138,24 @@ class ParkourGame {
         
         for (let platform of this.platforms) {
             // Check if player is horizontally within platform bounds (with player radius)
-            if (playerX > platform.minX - this.PLAYER_RADIUS && 
-                playerX < platform.maxX + this.PLAYER_RADIUS &&
-                playerZ > platform.minZ - this.PLAYER_RADIUS && 
-                playerZ < platform.maxZ + this.PLAYER_RADIUS) {
-                
+            const withinX = playerX > platform.minX - this.PLAYER_RADIUS && 
+                           playerX < platform.maxX + this.PLAYER_RADIUS;
+            const withinZ = playerZ > platform.minZ - this.PLAYER_RADIUS && 
+                           playerZ < platform.maxZ + this.PLAYER_RADIUS;
+            
+            if (withinX && withinZ) {
                 // Check if player is falling onto or standing on the platform
                 const playerBottom = playerY - this.PLAYER_HEIGHT;
                 const platformTop = platform.topY;
                 
+                // More lenient collision detection (increased tolerance)
+                const tolerance = 1.0; // Increased from 0.5
+                
                 // If player's feet are near the platform top and falling or on it
-                if (playerBottom <= platformTop + 0.5 && playerBottom >= platformTop - 0.5 && this.velocity.y <= 0) {
+                if (playerBottom <= platformTop + tolerance && 
+                    playerBottom >= platformTop - tolerance && 
+                    this.velocity.y <= 0) {
+                    
                     if (platformTop > highestPlatform) {
                         highestPlatform = platformTop;
                         onPlatform = true;
@@ -949,9 +1174,10 @@ class ParkourGame {
             this.canJump = true;
             this.doubleJumpUsed = false; // Reset double jump on landing
             
-            // Create landing particles
+            // Create landing particles and play sound
             if (justLanded) {
                 this.createLandingParticles(playerX, highestPlatform, playerZ);
+                this.playLandSound();
             }
         } else {
             this.canJump = false;
@@ -1013,12 +1239,13 @@ class ParkourGame {
         this.camera.position.y += this.velocity.y * delta;
 
         // Check collision after movement
-        const landedPlatform = this.checkCollision();
-        
         // Check for bounce pad
         if (landedPlatform && landedPlatform.isBouncePad) {
             this.velocity.y = 25; // Super jump
+            this.playBounceSound();
         }
+
+        // Apply friction
 
         // Apply friction
         this.velocity.x *= 0.9;
@@ -1051,6 +1278,14 @@ class ParkourGame {
         
         // Update skybox based on height
         this.updateSkybox();
+        
+        // Play ambient wind at high altitudes
+        if (Math.floor(this.currentHeight) % 50 === 0 && this.currentHeight > 100) {
+            if (!this.lastWindHeight || this.currentHeight - this.lastWindHeight >= 50) {
+                this.playAmbientWind();
+                this.lastWindHeight = this.currentHeight;
+            }
+        }
         
         // Update FOV for sprint effect
         if (this.isSprinting) {
@@ -1096,8 +1331,6 @@ class ParkourGame {
         for (let checkpoint of this.checkpoints) {
             if (!checkpoint.activated) {
                 const dist = this.camera.position.distanceTo(new THREE.Vector3(0, checkpoint.height, 0));
-                if (dist < 5 && Math.abs(this.camera.position.y - checkpoint.height) < 3) {
-                    checkpoint.activated = true;
                     checkpoint.mesh.material.color.setHex(0xFFD700);
                     checkpoint.mesh.material.emissive.setHex(0xFFD700);
                     this.lastCheckpoint = {
@@ -1105,6 +1338,7 @@ class ParkourGame {
                         y: checkpoint.height + this.PLAYER_HEIGHT,
                         z: this.camera.position.z
                     };
+                    this.playCheckpointSound();
                     console.log(`Checkpoint activated at ${checkpoint.height}m!`);
                 }
             }
@@ -1116,11 +1350,9 @@ class ParkourGame {
             if (!collectible.collected) {
                 const dist = this.camera.position.distanceTo(collectible.position);
                 if (dist < 2) {
-                    collectible.collected = true;
-                    this.scene.remove(collectible.mesh);
-                    
                     if (collectible.type === 'coin') {
                         this.coins++;
+                        this.playCoinSound();
                         console.log(`Coin collected! ${this.coins}/${this.totalCoins}`);
                     } else if (collectible.type === 'powerup') {
                         this.activatePowerUp();
@@ -1134,6 +1366,7 @@ class ParkourGame {
         this.hasDoubleJump = true;
         this.powerUpActive = 'Double Jump';
         this.powerUpTimer = 10;
+        this.playPowerUpSound();
         console.log('Power-up activated: Double Jump!');
     }
 
@@ -1222,13 +1455,12 @@ class ParkourGame {
         if (!this.achievements.coins50 && this.coins >= 50) {
             this.achievements.coins50 = true;
             this.showAchievement('Treasure Hunter', 'Collected 50 coins!');
-        }
-    }
-
     showAchievement(title, description) {
         const achievementDiv = document.getElementById('achievement-popup');
         achievementDiv.innerHTML = `<strong>${title}</strong><br>${description}`;
         achievementDiv.style.display = 'block';
+        
+        this.playAchievementSound();
         
         setTimeout(() => {
             achievementDiv.style.display = 'none';
